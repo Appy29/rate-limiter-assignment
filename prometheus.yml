@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 15s     # How frequently to scrape targets
+  evaluation_interval: 15s # How frequently to evaluate rules
+
+# A scrape configuration containing exactly one endpoint to scrape:
+scrape_configs:
+  - job_name: 'rate-limiter'
+    static_configs:
+      - targets: ['host.docker.internal:8080']  # For Docker on Mac/Windows
+        # - targets: ['172.17.0.1:8080']        # For Docker on Linux (uncomment if needed)
+    scrape_interval: 5s
+    metrics_path: '/metrics'
+    params:
+      format: ['prometheus']
+
+  # Optional: Scrape Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
