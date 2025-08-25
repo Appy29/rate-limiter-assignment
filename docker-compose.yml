@@ -1,0 +1,92 @@
+services:
+  redis-1:
+    image: redis:7-alpine
+    container_name: rate-limiter-redis-1
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --appendfsync everysec
+    volumes:
+      - redis-1-data:/data
+    networks:
+      - rate-limiter-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+
+  redis-2:
+    image: redis:7-alpine
+    container_name: rate-limiter-redis-2
+    ports:
+      - "6380:6379"  # External port 6380 maps to internal 6379
+    command: redis-server --appendonly yes --appendfsync everysec
+    volumes:
+      - redis-2-data:/data
+    networks:
+      - rate-limiter-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: rate-limiter-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - rate-limiter-network
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+
+  # Optional: Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: rate-limiter-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - rate-limiter-network
+    depends_on:
+      - prometheus
+
+  # Optional: Redis Commander for GUI management
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: rate-limiter-redis-gui
+    ports:
+      - "8081:8081"
+    environment:
+      - REDIS_HOSTS=redis-1:redis-1:6379,redis-2:redis-2:6379
+    networks:
+      - rate-limiter-network
+    depends_on:
+      - redis-1
+      - redis-2
+
+volumes:
+  redis-1-data:
+    driver: local
+  redis-2-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+networks:
+  rate-limiter-network:
+    driver: bridge

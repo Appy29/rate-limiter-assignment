@@ -1,0 +1,460 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Distributed Rate Limiter API",
+    "description": "A high-performance, enterprise-grade distributed rate limiter microservice built with Go and Redis. Handles millions of requests per second with sub-3ms response times.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "API Support",
+      "email": "support@example.com"
+    },
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Development server"
+    },
+    {
+      "url": "https://api.ratelimiter.com",
+      "description": "Production server"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Health Check",
+        "description": "Check if the rate limiter service is running and healthy",
+        "operationId": "healthCheck",
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "example": "OK"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/generate-token": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Generate JWT Token",
+        "description": "Generate a JWT token for testing the rate limiter endpoints",
+        "operationId": "generateToken",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token generated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/acquire": {
+      "post": {
+        "tags": ["Rate Limiting"],
+        "summary": "Acquire Tokens",
+        "description": "Attempt to acquire tokens from the rate limiter. Returns success if allowed, or rate limit error if exceeded.",
+        "operationId": "acquireTokens",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcquireRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Request allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcquireResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid JWT token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcquireResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/status": {
+      "get": {
+        "tags": ["Rate Limiting"],
+        "summary": "Get Rate Limit Status",
+        "description": "Get current rate limit status for the authenticated user including tokens left, capacity, and next refill time",
+        "operationId": "getRateLimitStatus",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rate limit status retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid JWT token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "tags": ["Monitoring"],
+        "summary": "Get Metrics",
+        "description": "Get Prometheus-compatible metrics for monitoring and alerting",
+        "operationId": "getMetrics",
+        "parameters": [
+          {
+            "name": "format",
+            "in": "query",
+            "description": "Metrics format",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["json", "prometheus"],
+              "default": "json"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Metrics retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetricsResponse"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "example": "# HELP rate_limiter_requests_total Total number of requests\n# TYPE rate_limiter_requests_total counter\nrate_limiter_requests_total{status=\"success\"} 157"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "TokenRequest": {
+        "type": "object",
+        "required": ["user_id"],
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "description": "Unique identifier for the user",
+            "example": "demo_user"
+          }
+        }
+      },
+      "TokenResponse": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "JWT token for authentication",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZGVtb191c2VyIiwic3ViIjoiZGVtb191c2VyIiwiZXhwIjoxNzU1ODY3NTI1LCJpYXQiOjE3NTU3ODExMjV9.example"
+          },
+          "user_id": {
+            "type": "string",
+            "description": "User ID from the request",
+            "example": "demo_user"
+          }
+        }
+      },
+      "AcquireRequest": {
+        "type": "object",
+        "properties": {
+          "tokens": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Number of tokens to acquire",
+            "example": 5,
+            "minimum": 1,
+            "default": 1
+          },
+          "algorithm": {
+            "type": "string",
+            "description": "Rate limiting algorithm to use",
+            "enum": ["token_bucket", "leaky_bucket"],
+            "example": "token_bucket",
+            "default": "token_bucket"
+          }
+        }
+      },
+      "AcquireResponse": {
+        "type": "object",
+        "properties": {
+          "allowed": {
+            "type": "boolean",
+            "description": "Whether the request was allowed",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "Response message",
+            "example": "Request allowed"
+          },
+          "retry_after": {
+            "type": "integer",
+            "description": "Seconds to wait before retrying (only present when rate limited)",
+            "example": 30
+          }
+        }
+      },
+      "StatusResponse": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "User identifier",
+            "example": "demo_user"
+          },
+          "algorithm": {
+            "type": "string",
+            "description": "Rate limiting algorithm in use",
+            "example": "token_bucket"
+          },
+          "tokens_left": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Number of tokens remaining",
+            "example": 95
+          },
+          "capacity": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Maximum capacity of the bucket",
+            "example": 100
+          },
+          "refill_rate": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Refill rate in nanoseconds",
+            "example": 1000000000
+          },
+          "next_refill_time": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Next time tokens will be refilled",
+            "example": "2025-08-21T18:33:40.854Z"
+          },
+          "is_blocked": {
+            "type": "boolean",
+            "description": "Whether the user is currently blocked",
+            "example": false
+          }
+        }
+      },
+      "MetricsResponse": {
+        "type": "object",
+        "properties": {
+          "service": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "example": "rate-limiter"
+              },
+              "version": {
+                "type": "string",
+                "example": "1.0.0"
+              },
+              "uptime": {
+                "type": "number",
+                "example": 541.23
+              }
+            }
+          },
+          "requests": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer",
+                "example": 900
+              },
+              "successful": {
+                "type": "integer",
+                "example": 157
+              },
+              "rate_limited": {
+                "type": "integer",
+                "example": 743
+              },
+              "errors": {
+                "type": "integer",
+                "example": 0
+              },
+              "rate_per_sec": {
+                "type": "number",
+                "example": 0.41
+              }
+            }
+          },
+          "performance": {
+            "type": "object",
+            "properties": {
+              "avg_response_time_ms": {
+                "type": "number",
+                "example": 2.24
+              },
+              "active_goroutines": {
+                "type": "integer",
+                "example": 11
+              }
+            }
+          },
+          "redis": {
+            "type": "object",
+            "properties": {
+              "healthy": {
+                "type": "boolean",
+                "example": true
+              },
+              "avg_latency_ms": {
+                "type": "number",
+                "example": 2.23
+              }
+            }
+          },
+          "memory": {
+            "type": "object",
+            "properties": {
+              "alloc_mb": {
+                "type": "number",
+                "example": 1.84
+              }
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Error type",
+            "example": "Bad Request"
+          },
+          "code": {
+            "type": "integer",
+            "description": "HTTP status code",
+            "example": 400
+          },
+          "message": {
+            "type": "string",
+            "description": "Detailed error message",
+            "example": "user_id is required"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Enter JWT token obtained from /generate-token endpoint"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Health",
+      "description": "Service health monitoring"
+    },
+    {
+      "name": "Authentication",
+      "description": "JWT token management"
+    },
+    {
+      "name": "Rate Limiting",
+      "description": "Core rate limiting operations"
+    },
+    {
+      "name": "Monitoring",
+      "description": "Metrics and monitoring endpoints"
+    }
+  ]
+}
